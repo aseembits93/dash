@@ -925,16 +925,63 @@ def get_r_type(type_object, is_flow_type=False, indent_num=0):
         Python type string
     """
     js_type_name = type_object["name"]
-    js_to_r_types = get_r_prop_types(type_object=type_object)
     if (
         "computed" in type_object
         and type_object["computed"]
         or type_object.get("type", "") == "function"
     ):
         return ""
-    if js_type_name in js_to_r_types:
-        prop_type = js_to_r_types[js_type_name]()
-        return prop_type
+
+    if js_type_name == "array":
+        return "unnamed list"
+    elif js_type_name == "bool":
+        return "logical"
+    elif js_type_name == "number":
+        return "numeric"
+    elif js_type_name == "string":
+        return "character"
+    elif js_type_name == "object":
+        return "named list"
+    elif js_type_name == "any":
+        return "logical | numeric | character | named list | unnamed list"
+    elif js_type_name == "element":
+        return "dash component"
+    elif js_type_name == "node":
+        return "a list of or a singular dash component, string or number"
+    elif js_type_name == "enum":
+        return "a value equal to: {}".format(
+            ", ".join(str(t["value"]) for t in type_object["value"])
+        )
+    elif js_type_name == "union":
+        prop_types = []
+        for subType in type_object["value"]:
+            prop_type = get_r_type(subType)
+            if prop_type != "":
+                prop_types.append(prop_type)
+        return " | ".join(prop_types)
+    elif js_type_name == "arrayOf":
+        val_type = get_r_type(type_object["value"])
+        return "list" + (" of {}s".format(val_type) if val_type != "" else "")
+    elif js_type_name == "objectOf":
+        return "list with named elements and values of type {}".format(
+            get_r_type(type_object["value"])
+        )
+    elif js_type_name == "shape" or js_type_name == "exact":
+        return "lists containing elements {}.\n{}".format(
+            ", ".join("'{}'".format(t) for t in type_object["value"]),
+            "Those elements have the following types:\n{}".format(
+                "\n".join(
+                    create_prop_docstring_r(
+                        prop_name=prop_name,
+                        type_object=prop,
+                        required=prop["required"],
+                        description=prop.get("description", ""),
+                        indent_num=1,
+                    )
+                    for prop_name, prop in type_object["value"].items()
+                )
+            ),
+        )
     return ""
 
 

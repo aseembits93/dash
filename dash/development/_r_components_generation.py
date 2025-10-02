@@ -997,9 +997,7 @@ def create_prop_docstring_r(
 
 
 def get_wildcards_r(prop_keys):
-    wildcards = ""
-    wildcards += ", ".join("'{}'".format(p) for p in prop_keys if p.endswith("-*"))
-
-    if wildcards == "":
-        wildcards = "NULL"
-    return wildcards
+    # Use a list comprehension and only join if there are matches,
+    # avoiding unnecessary string concatenation and additional comparisons.
+    wildcards_list = [f"'{p}'" for p in prop_keys if p.endswith("-*")]
+    return ", ".join(wildcards_list) if wildcards_list else "NULL"

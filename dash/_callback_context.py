@@ -31,7 +31,8 @@ def _get_context_value():
 
 
 def _get_from_context(key, default):
-    return getattr(_get_context_value(), key, default)
+    # Inline context_value.get() to avoid extra function call
+    return getattr(context_value.get(), key, default)
 
 
 class FalsyList(list):

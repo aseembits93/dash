@@ -735,7 +735,10 @@ def generate_rpkg(
 # but probably more conventional this way
 def snake_case_to_camel_case(namestring):
     s = namestring.split("_")
-    return s[0] + "".join(w.capitalize() for w in s[1:])
+    # Use a local variable for fast function lookup
+    capitalize = str.capitalize
+    # Use list comprehension for efficiency
+    return s[0] + "".join([capitalize(w) for w in s[1:]])
 
 
 # this logic will permit passing blank R prefixes to

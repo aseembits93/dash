@@ -133,10 +133,14 @@ def map_grouping(fn, grouping):
     :return: A new grouping with the same structure as input grouping with scalar
         values updated by the input function.
     """
-    if isinstance(grouping, (tuple, list)):
+    group_type = type(grouping)
+    if group_type is list or group_type is tuple:
+        # Use list comprehension, avoid isinstance for every call
         return [map_grouping(fn, g) for g in grouping]
 
-    if isinstance(grouping, dict):
+    if group_type is dict or group_type is AttributeDict:
+        # Use dict comprehension once, avoids isinstance
+        # Only one call to __getitem__ and avoids AttributeDict if already exists
         return AttributeDict({k: map_grouping(fn, g) for k, g in grouping.items()})
 
     return fn(grouping)

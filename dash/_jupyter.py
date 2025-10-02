@@ -63,19 +63,12 @@ def _custom_formatargvalues(
     formatvarkw=lambda name: "**" + name,
     formatvalue=lambda value: "=" + repr(value),
 ):
-
     """Copied from inspect.formatargvalues, modified to place function
     arguments on separate lines"""
 
-    # pylint: disable=W0622
-    def convert(name, locals=locals, formatarg=formatarg, formatvalue=formatvalue):
-        return formatarg(name) + formatvalue(locals[name])
+    # Use list comprehension for speed instead of for loop + append
+    specs = [formatarg(name) + formatvalue(locals[name]) for name in args]
 
-    specs = []
-
-    # pylint: disable=C0200
-    for i in range(len(args)):
-        specs.append(convert(args[i]))
     if varargs:
         specs.append(formatvarargs(varargs) + formatvalue(locals[varargs]))
     if varkw:

@@ -11,6 +11,8 @@ import warnings
 from ._all_keywords import r_keywords
 from ._py_components_generation import reorder_props
 
+_r_prop_types_cache = {}
+
 
 # Declaring longer string templates as globals to improve
 # readability, make method logic clearer to anyone inspecting
@@ -925,7 +927,7 @@ def get_r_type(type_object, is_flow_type=False, indent_num=0):
         Python type string
     """
     js_type_name = type_object["name"]
-    js_to_r_types = get_r_prop_types(type_object=type_object)
+    js_to_r_types = _get_r_prop_types_cached(type_object)
     if (
         "computed" in type_object
         and type_object["computed"]
@@ -1003,3 +1005,13 @@ def get_wildcards_r(prop_keys):
     if wildcards == "":
         wildcards = "NULL"
     return wildcards
+
+def _get_r_prop_types_cached(type_object):
+    type_name = type_object.get("name")
+    if type_name in {
+        "array", "bool", "number", "string", "object", "any", "element", "node"
+    }:
+        if type_name not in _r_prop_types_cache:
+            _r_prop_types_cache[type_name] = get_r_prop_types(type_object)
+        return _r_prop_types_cache[type_name]
+    return get_r_prop_types(type_object)

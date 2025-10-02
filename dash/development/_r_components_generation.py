@@ -868,21 +868,21 @@ def get_r_prop_types(type_object):
             ),
         )
 
-    return dict(
-        array=lambda: "unnamed list",
-        bool=lambda: "logical",
-        number=lambda: "numeric",
-        string=lambda: "character",
-        object=lambda: "named list",
-        any=lambda: "logical | numeric | character | named list | unnamed list",
-        element=lambda: "dash component",
-        node=lambda: "a list of or a singular dash component, string or number",
+    return {
+        "array": lambda: "unnamed list",
+        "bool": lambda: "logical",
+        "number": lambda: "numeric",
+        "string": lambda: "character",
+        "object": lambda: "named list",
+        "any": lambda: "logical | numeric | character | named list | unnamed list",
+        "element": lambda: "dash component",
+        "node": lambda: "a list of or a singular dash component, string or number",
         # React's PropTypes.oneOf
-        enum=lambda: "a value equal to: {}".format(
+        "enum": lambda: "a value equal to: {}".format(
             ", ".join("{}".format(str(t["value"])) for t in type_object["value"])
         ),
         # React's PropTypes.oneOfType
-        union=lambda: "{}".format(
+        "union": lambda: "{}".format(
             " | ".join(
                 "{}".format(get_r_type(subType))
                 for subType in type_object["value"]
@@ -890,7 +890,7 @@ def get_r_prop_types(type_object):
             )
         ),
         # React's PropTypes.arrayOf
-        arrayOf=lambda: (
+        "arrayOf": lambda: (
             "list"
             + (
                 " of {}s".format(get_r_type(type_object["value"]))
@@ -899,14 +899,14 @@ def get_r_prop_types(type_object):
             )
         ),
         # React's PropTypes.objectOf
-        objectOf=lambda: "list with named elements and values of type {}".format(
+        "objectOf": lambda: "list with named elements and values of type {}".format(
             get_r_type(type_object["value"])
         ),
         # React's PropTypes.shape
-        shape=shape_or_exact,
+        "shape": shape_or_exact,
         # React's PropTypes.exact
-        exact=shape_or_exact,
-    )
+        "exact": shape_or_exact,
+    }
 
 
 def get_r_type(type_object, is_flow_type=False, indent_num=0):

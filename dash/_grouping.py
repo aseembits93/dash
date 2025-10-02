@@ -238,13 +238,13 @@ def validate_grouping(grouping, schema, full_schema=None, path=()):
 
 def update_args_group(g, triggered):
     if isinstance(g, dict):
-        str_id = stringify_id(g["id"])
-        prop_id = f"{str_id}.{g['property']}"
-
-        new_values = {
-            "value": g.get("value"),
-            "str_id": str_id,
-            "triggered": prop_id in triggered,
-            "id": AttributeDict(g["id"]) if isinstance(g["id"], dict) else g["id"],
-        }
-        g.update(new_values)
+        gid = g["id"]
+        str_id = stringify_id(gid)
+        prop = g["property"]
+        prop_id = f"{str_id}.{prop}"
+        g["str_id"] = str_id
+        g["triggered"] = prop_id in triggered
+        g["id"] = AttributeDict(gid) if isinstance(gid, dict) else gid
+        # Avoid second dict lookup for value
+        if "value" in g:
+            g["value"] = g["value"]

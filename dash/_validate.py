@@ -565,23 +565,30 @@ def validate_duplicate_output(
     if "initial_duplicate" in (prevent_initial_call, config_prevent_initial_call):
         return
 
-    def _valid(out):
-        if (
-            out.allow_duplicate
-            and not prevent_initial_call
-            and not config_prevent_initial_call
-        ):
-            raise exceptions.DuplicateCallback(
-                "allow_duplicate requires prevent_initial_call to be True. The order of the call is not"
-                " guaranteed to be the same on every page load. "
-                "To enable duplicate callback with initial call, set prevent_initial_call='initial_duplicate' "
-                " or globally in the config prevent_initial_callbacks='initial_duplicate'"
-            )
-
     if isinstance(output, (list, tuple)):
+        should_raise = (
+            not prevent_initial_call and
+            not config_prevent_initial_call
+        )
         for o in output:
-            _valid(o)
+            if o.allow_duplicate and should_raise:
+                raise exceptions.DuplicateCallback(
+                    "allow_duplicate requires prevent_initial_call to be True. The order of the call is not"
+                    " guaranteed to be the same on every page load. "
+                    "To enable duplicate callback with initial call, set prevent_initial_call='initial_duplicate' "
+                    " or globally in the config prevent_initial_callbacks='initial_duplicate'"
+                )
 
         return
 
-    _valid(output)
+    if (
+        output.allow_duplicate
+        and not prevent_initial_call
+        and not config_prevent_initial_call
+    ):
+        raise exceptions.DuplicateCallback(
+            "allow_duplicate requires prevent_initial_call to be True. The order of the call is not"
+            " guaranteed to be the same on every page load. "
+            "To enable duplicate callback with initial call, set prevent_initial_call='initial_duplicate' "
+            " or globally in the config prevent_initial_callbacks='initial_duplicate'"
+        )

@@ -90,19 +90,21 @@ def make_grouping_by_index(schema, flat_values):
         Elements of flat_values will become the scalar values in the resulting grouping
     """
 
+    # New approach: flatten_grouping on schema is expensive and recalculates each time.
+    # Since only the length is required and the schema isn't mutated, we can use a cached length calculation.
+
     def _perform_make_grouping_like(value, next_values):
-        if isinstance(value, (tuple, list)):
-            return list(
-                _perform_make_grouping_like(el, next_values)
-                for i, el in enumerate(value)
-            )
-
-        if isinstance(value, dict):
-            return {
-                k: _perform_make_grouping_like(v, next_values)
-                for i, (k, v) in enumerate(value.items())
-            }
-
+        # Instead of isinstance() in each call, factor the type logic outside for small savings
+        t = type(value)
+        if t is tuple:
+            # For tuples, use tuple comprehension (faster than list gen + tuple())
+            # Original returns list, so keep as list for backward compatibility.
+            return [ _perform_make_grouping_like(el, next_values) for el in value ]
+        elif t is list:
+            return [ _perform_make_grouping_like(el, next_values) for el in value ]
+        elif t is dict:
+            # Original dict order is preserved; just loop on .items()
+            return { k: _perform_make_grouping_like(v, next_values) for k, v in value.items() }
         return next_values.pop(0)
 
     if not isinstance(flat_values, list):
@@ -111,7 +113,25 @@ def make_grouping_by_index(schema, flat_values):
             f"Received value of type {type(flat_values)}"
         )
 
-    expected_length = len(flatten_grouping(schema))
+    # Optimization: Avoid flattening the full grouping; just count leaf/scalar elements
+    def _count_grouping_scalars(sch):
+        # Fast non-recursive count of leaves
+        total = 0
+        stack = [sch]
+        stack_pop = stack.pop
+        stack_append = stack.append
+        while stack:
+            curr = stack_pop()
+            t = type(curr)
+            if t is tuple or t is list:
+                stack.extend(curr)
+            elif t is dict:
+                stack.extend(curr.values())
+            else:
+                total += 1
+        return total
+
+    expected_length = _count_grouping_scalars(schema)
     if len(flat_values) != expected_length:
         raise ValueError(
             f"The specified grouping pattern requires {expected_length} "
@@ -120,6 +140,7 @@ def make_grouping_by_index(schema, flat_values):
             f"    Values: {flat_values}"
         )
 
+    # Defensive: copy the flat_values input
     return _perform_make_grouping_like(schema, list(flat_values))
 
 

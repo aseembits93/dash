@@ -255,6 +255,15 @@ def fail_callback_output(output_value, output):
             )
         )
 
+    # Cache to_json + isinstance for common types for faster _can_serialize
+    # It's safe to use memoization since all values are immutable or not mutated
+    from functools import lru_cache
+
+    @lru_cache(maxsize=128)
+    def _is_trivially_serializable(val_type):
+        # Check for types that are always trivially JSON serializable
+        return val_type in (str, int, float, type(None))
+
     def _valid_child(val):
         return isinstance(val, valid_children)
 
@@ -262,37 +271,39 @@ def fail_callback_output(output_value, output):
         return isinstance(val, valid_props)
 
     def _can_serialize(val):
-        if not (_valid_child(val) or _valid_prop(val)):
-            return False
-        try:
-            to_json(val)
-        except TypeError:
-            return False
-        return True
+        # Fast path for primitive, trivially serializable types
+        if _is_trivially_serializable(type(val)):
+            return True
+        if _valid_child(val) or _valid_prop(val):
+            try:
+                to_json(val)
+            except TypeError:
+                return False
+            return True
+        return False
 
     def _validate_value(val, index=None):
         # val is a Component
         if isinstance(val, Component):
             unserializable_items = []
+            traverse_append = unserializable_items.append
             # pylint: disable=protected-access
             for p, j in val._traverse_with_paths():
-                # check each component value in the tree
+                # check each component value in the tree (hot path)
                 if not _valid_child(j):
                     _raise_invalid(bad_val=j, outer_val=val, path=p, index=index)
 
                 if not _can_serialize(j):
-                    # collect unserializable items separately, so we can report
-                    # only the deepest level, not all the parent components that
-                    # are just unserializable because of their children.
-                    unserializable_items = [
-                        i for i in unserializable_items if not p.startswith(i[0])
-                    ]
+                    # collect unserializable items separately
+                    # more memory efficient: do not filter unless there are any items
                     if unserializable_items:
-                        # we already have something unserializable in a different
-                        # branch - time to stop and fail
+                        unserializable_items[:] = [
+                            i for i in unserializable_items if not p.startswith(i[0])
+                        ]
+                    if unserializable_items:
                         break
                     if all(not i[0].startswith(p) for i in unserializable_items):
-                        unserializable_items.append((p, j))
+                        traverse_append((p, j))
 
                 # Children that are not of type Component or
                 # list/tuple not returned by traverse
@@ -307,8 +318,6 @@ def fail_callback_output(output_value, output):
                         )
             if unserializable_items:
                 p, j = unserializable_items[0]
-                # just report the first one, even if there are multiple,
-                # as that's how all the other errors work
                 _raise_invalid(bad_val=j, outer_val=val, path=p, index=index)
 
             # Also check the child of val, as it will not be returned
@@ -331,9 +340,12 @@ def fail_callback_output(output_value, output):
                 toplevel=True,
             )
 
+    # Avoid per-element attribute lookup and method call in enumerate for simple lists
     if isinstance(output_value, list):
-        for i, val in enumerate(output_value):
-            _validate_value(val, index=i)
+        _validate_value_call = _validate_value  # Local for perf
+        rng = range(len(output_value))
+        for i in rng:
+            _validate_value_call(output_value[i], index=i)
     else:
         _validate_value(output_value)
 

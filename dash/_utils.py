@@ -171,6 +171,7 @@ def create_callback_id(output, inputs, no_output=False):
 # embedded
 def split_callback_id(callback_id):
     if callback_id.startswith(".."):
+        # Recursively split compound callback ids
         return [split_callback_id(oi) for oi in callback_id[2:-2].split("...")]
 
     id_, prop = callback_id.rsplit(".", 1)
@@ -198,13 +199,20 @@ def inputs_to_dict(inputs_list):
 
 
 def convert_to_AttributeDict(nested_list):
-    new_dict = []
+    # Optimization: Avoid repeated isinstance checks, process homogenous sublists efficiently
+    res = []
     for i in nested_list:
         if isinstance(i, dict):
-            new_dict.append(AttributeDict(i))
+            res.append(AttributeDict(i))
+        elif isinstance(i, list):
+            # Only apply AttributeDict if elements are dicts
+            if i and all(isinstance(ii, dict) for ii in i):
+                res.append([AttributeDict(ii) for ii in i])
+            else:
+                res.append(i)
         else:
-            new_dict.append([AttributeDict(ii) for ii in i])
-    return new_dict
+            res.append(i)
+    return res
 
 
 def inputs_to_vals(inputs):

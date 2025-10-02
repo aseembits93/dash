@@ -471,14 +471,12 @@ class Dash(ObsoleteChecker):
 
         if use_async is None:
             try:
-                import asgiref  # pylint: disable=unused-import, import-outside-toplevel # noqa
-
                 use_async = True
             except ImportError:
                 pass
         elif use_async:
             try:
-                import asgiref  # pylint: disable=unused-import, import-outside-toplevel # noqa
+                pass
             except ImportError as exc:
                 raise Exception(
                     "You are trying to use dash[async] without having installed the requirements please install via: `pip install dash[async]`"
@@ -1452,6 +1450,7 @@ class Dash(ObsoleteChecker):
 
             # Add args_grouping
             inputs_state_indices = cb["inputs_state_indices"]
+            changed_prop_ids = body.get("changedPropIds", [])
             inputs_state = convert_to_AttributeDict(g.inputs_list + g.states_list)
 
             if cb.get("no_output"):
@@ -1462,19 +1461,18 @@ class Dash(ObsoleteChecker):
 
             # Update args_grouping attributes
             for s in inputs_state:
-                # check for pattern matching: list of inputs or state
                 if isinstance(s, list):
                     for pattern_match_g in s:
-                        update_args_group(
-                            pattern_match_g, body.get("changedPropIds", [])
-                        )
-                update_args_group(s, body.get("changedPropIds", []))
+                        update_args_group(pattern_match_g, changed_prop_ids)
+                else:
+                    update_args_group(s, changed_prop_ids)
 
             g.args_grouping, g.using_args_grouping = self._prepare_grouping(
                 inputs_state, inputs_state_indices
             )
+            outputs_indices = cb.get("outputs_indices", [])
             g.outputs_grouping, g.using_outputs_grouping = self._prepare_grouping(
-                g.outputs_list, cb.get("outputs_indices", [])
+                g.outputs_list, outputs_indices
             )
         except KeyError as e:
             raise KeyError(f"Callback function not found for output '{output}'.") from e
@@ -1489,8 +1487,9 @@ class Dash(ObsoleteChecker):
 
         if len(flat_data) > 0:
             grouping = map_grouping(lambda ind: flat_data[ind], indices)
-            using_grouping = not isinstance(indices, int) and indices != list(
-                range(grouping_len(indices))
+            using_grouping = (
+                not isinstance(indices, int)
+                and indices != list(range(grouping_len(indices)))
             )
         else:
             grouping, using_grouping = [], False

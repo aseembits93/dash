@@ -851,62 +851,71 @@ def make_namespace_exports(components, prefix):
 def get_r_prop_types(type_object):
     """Mapping from the PropTypes js type object to the R type."""
 
+    # Assign these functions only once, so we do not have to build a huge dict every call
+    # and close over `type_object` via a lambda. This avoids allocating a new lambda/function object on every get_r_type call.
+
+    # shape_or_exact is kept as a closure since its use of the enclosing `type_object` is essential for docstring generation.
+
     def shape_or_exact():
-        return "lists containing elements {}.\n{}".format(
-            ", ".join("'{}'".format(t) for t in type_object["value"]),
-            "Those elements have the following types:\n{}".format(
-                "\n".join(
-                    create_prop_docstring_r(
-                        prop_name=prop_name,
-                        type_object=prop,
-                        required=prop["required"],
-                        description=prop.get("description", ""),
-                        indent_num=1,
-                    )
-                    for prop_name, prop in type_object["value"].items()
-                )
-            ),
+        values = type_object["value"]
+        # Avoid repeated computation, collect keys and type docstrings together
+        prop_names = list(values)
+        prop_list = [
+            create_prop_docstring_r(
+                prop_name=prop_name,
+                type_object=prop,
+                required=prop["required"],
+                description=prop.get("description", ""),
+                indent_num=1,
+            )
+            for prop_name, prop in values.items()
+        ]
+        return "lists containing elements {}.\nThose elements have the following types:\n{}".format(
+            ", ".join("'{}'".format(t) for t in prop_names),
+            "\n".join(prop_list)
         )
 
-    return dict(
-        array=lambda: "unnamed list",
-        bool=lambda: "logical",
-        number=lambda: "numeric",
-        string=lambda: "character",
-        object=lambda: "named list",
-        any=lambda: "logical | numeric | character | named list | unnamed list",
-        element=lambda: "dash component",
-        node=lambda: "a list of or a singular dash component, string or number",
-        # React's PropTypes.oneOf
-        enum=lambda: "a value equal to: {}".format(
-            ", ".join("{}".format(str(t["value"])) for t in type_object["value"])
-        ),
-        # React's PropTypes.oneOfType
-        union=lambda: "{}".format(
-            " | ".join(
-                "{}".format(get_r_type(subType))
-                for subType in type_object["value"]
-                if get_r_type(subType) != ""
-            )
-        ),
-        # React's PropTypes.arrayOf
-        arrayOf=lambda: (
-            "list"
-            + (
-                " of {}s".format(get_r_type(type_object["value"]))
-                if get_r_type(type_object["value"]) != ""
-                else ""
-            )
-        ),
-        # React's PropTypes.objectOf
-        objectOf=lambda: "list with named elements and values of type {}".format(
-            get_r_type(type_object["value"])
-        ),
-        # React's PropTypes.shape
-        shape=shape_or_exact,
-        # React's PropTypes.exact
-        exact=shape_or_exact,
-    )
+    # Inline simple string returns to static reference for efficiency.
+    _static_types = {
+        "array":        "unnamed list",
+        "bool":         "logical",
+        "number":       "numeric",
+        "string":       "character",
+        "object":       "named list",
+        "any":          "logical | numeric | character | named list | unnamed list",
+        "element":      "dash component",
+        "node":         "a list of or a singular dash component, string or number",
+    }
+
+    js_type_name = type_object["name"]
+
+    # Custom closures directly reference the passed-in type_object to avoid excessive dictionary creation
+    if js_type_name in _static_types:
+        # Fastest-path, avoid a dict+call, just return the static string.
+        return lambda: _static_types[js_type_name]
+    elif js_type_name == "enum":
+        values = type_object["value"]
+        # Extract value only once
+        enum_joined = ", ".join(str(t["value"]) for t in values)
+        return lambda: "a value equal to: {}".format(enum_joined)
+    elif js_type_name == "union":
+        types = [
+            get_r_type(subType)
+            for subType in type_object["value"]
+        ]
+        types = [t for t in types if t != ""]
+        return lambda: " | ".join(types)
+    elif js_type_name == "arrayOf":
+        v_type = get_r_type(type_object["value"])
+        return lambda: "list" + (f" of {v_type}s" if v_type != "" else "")
+    elif js_type_name == "objectOf":
+        v_type = get_r_type(type_object["value"])
+        return lambda: "list with named elements and values of type {}".format(v_type)
+    elif js_type_name == "shape" or js_type_name == "exact":
+        return shape_or_exact
+    else:
+        # For unknown type names, fall back to original logic's behavior: no match.
+        return lambda: ""
 
 
 def get_r_type(type_object, is_flow_type=False, indent_num=0):
@@ -925,15 +934,21 @@ def get_r_type(type_object, is_flow_type=False, indent_num=0):
         Python type string
     """
     js_type_name = type_object["name"]
-    js_to_r_types = get_r_prop_types(type_object=type_object)
+
+    # Large optimization: only create dict/lambdas once for matching types, not for every call.
+    # The previous version always built all closures/lambdas in `get_r_prop_types`, even if only one would ever be used.
+
+    # All conditional/early-exits for performance.
     if (
-        "computed" in type_object
-        and type_object["computed"]
+        ("computed" in type_object and type_object["computed"])
         or type_object.get("type", "") == "function"
     ):
         return ""
-    if js_type_name in js_to_r_types:
-        prop_type = js_to_r_types[js_type_name]()
+
+    r_type_lambda = get_r_prop_types(type_object=type_object)
+    if js_type_name in ("array", "bool", "number", "string", "object", "any", "element", "node",
+                        "enum", "union", "arrayOf", "objectOf", "shape", "exact"):
+        prop_type = r_type_lambda()
         return prop_type
     return ""
 
